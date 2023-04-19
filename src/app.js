@@ -2,6 +2,9 @@ import express from "express"
 import cors from "cors"
 import { MongoClient } from "mongodb"
 import dotenv from "dotenv"
+import joi from "joi"
+import bcrypt from "bcrypt"
+import {v4 as uuid} from "uuid"
 
 const app = express()
 const PORT = 5000
@@ -17,4 +20,81 @@ mongoClient.connect()
         db = mongoClient.db()
     })
     .catch((err) => console.log(err.message))
+
+
+const userSchema = joi.object({
+    name: joi.string().required(),
+    email: joi.string().email().required(),
+    password: joi.string().required().min(3),
+    confirmPassword: joi.string().required().min(3)
+})
+
+const loginSchema = joi.object({
+    email: joi.string().email().required(),
+    password: joi.string().required().min(3),
+
+})
+
+
+app.post("/cadastro", async (req, res) => {
+
+    const { email, name, password, confirmPassword } = req.body
+    const validation = userSchema.validate(req.body, { abortEarly: false })
+
+    if (validation.error) {
+        const errors = validation.error.details.map((detail) => detail.message)
+        return res.status(422).send(errors)
+    }
+
+    try {
+        const lookingEmail = await db.collection("users").findOne({ email })
+
+        if (lookingEmail) return res.status(409).send("Usuário Cadastrado")
+
+        const hash = bcrypt.hashSync(password, 10)
+
+        await db.collection("users").insertOne({ email, name, password: hash })
+        res.sendStatus(201)
+    }
+    catch (err) {
+        return res.status(500).send(err.message)
+    }
+
+})
+
+app.post("/", async (req, res) => {
+
+    const { email, password } = req.body
+    const validation = loginSchema.validate(req.body, { abortEarly: false })
+
+    if (validation.error) {
+        const errors = validation.error.details.map((detail) => detail.message)
+        return res.status(422).send(errors)
+    }
+
+    const checkEmail = await db.collection("users").findOne({email})
+    if(!checkEmail) return res.status(404).send("Email não cadastrado")
+
+    const checkPassword = bcrypt.compareSync(password, checkEmail.password)
+    if(!checkPassword) return res.status(401).send("Senha Incorreta")
+
+    const token = uuid()
+    await db.collection("sessions").insertOne({token, idUsuario: checkEmail._id})
+    res.send(token)
+
+    return res.sendStatus(200)
+
+})
+
+app.get("/cadastro", (req, res) => {
+
+})
+
+
+
+
+
+
+
+
 app.listen(PORT, () => console.log(`Server Running in ${PORT}`))
