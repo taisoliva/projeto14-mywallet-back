@@ -1,10 +1,10 @@
 import express from "express"
 import cors from "cors"
-import { MongoClient } from "mongodb"
+import { MongoClient, ObjectId } from "mongodb"
 import dotenv from "dotenv"
 import joi from "joi"
 import bcrypt from "bcrypt"
-import {v4 as uuid} from "uuid"
+import { v4 as uuid } from "uuid"
 
 const app = express()
 const PORT = 5000
@@ -72,25 +72,87 @@ app.post("/", async (req, res) => {
         return res.status(422).send(errors)
     }
 
-    const checkEmail = await db.collection("users").findOne({email})
-    if(!checkEmail) return res.status(404).send("Email não cadastrado")
+    const checkEmail = await db.collection("users").findOne({ email })
+    if (!checkEmail) return res.status(404).send("Email não cadastrado")
 
     const checkPassword = bcrypt.compareSync(password, checkEmail.password)
-    if(!checkPassword) return res.status(401).send("Senha Incorreta")
+    if (!checkPassword) return res.status(401).send("Senha Incorreta")
 
     const token = uuid()
-    await db.collection("sessions").insertOne({token, idUsuario: checkEmail._id})
-    res.send(token)
+    await db.collection("sessions").insertOne({ token, idUsuario: checkEmail._id })
+    return res.status(200).send(token)
+
+
+})
+
+app.post("/nova-transacao/:tipo", async (req, res) => {
+
+    const { authorization } = req.headers
+    console.log(req.params.tipo)
+
+    const token = authorization?.replace("Bearer ", "")
+
+    if (!token) return res.status(401).send("Token Inexistente")
+
+    const registroSchema = joi.object({
+        valor: joi.number().precision(2).required().positive(),
+        descricao: joi.string().required()
+    })
+
+    try {
+        const sessao = await db.collection("sessions").findOne({ token })
+        if (!sessao) return res.status(401).send("Token inválido")
+
+        const usuario = await db.collection("users").findOne({ _id: new ObjectId(sessao.idUsuario) })
+        const validation = registroSchema.validate(req.body, { abortEarly: false })
+
+        if (validation.error) {
+            const errors = validation.error.details.map((detail) => detail.message)
+            return res.status(422).send(errors)
+        }
+
+        await db.collection("registros").insertOne({ ...req.body, idUsuario: usuario._id, tipo: req.params.tipo })
+    } catch (err) {
+        res.status(500).send(err.message)
+    }
 
     return res.sendStatus(200)
 
 })
 
-app.get("/cadastro", (req, res) => {
+app.get("/cadastro", async (req, res) => {
 
+    try {
+        const usuarios = await db.collection("users").find().toArray()
+
+        usuarios.forEach((user) => {
+            delete user.password
+        })
+        res.send(usuarios)
+    } catch (err) {
+        return res.status(500).send(err.message)
+    }
 })
 
+app.get("/", async (req, res) => {
+    try {
+        const sessao = await db.collection("sessions").find().toArray()
 
+        res.send(sessao)
+    } catch (err) {
+        return res.status(500).send(err.message)
+    }
+})
+
+app.get("/registros", async (req, res) => {
+    try {
+        const register = await db.collection("registros").find().toArray()
+
+        res.send(register)
+    } catch (err) {
+        return res.status(500).send(err.message)
+    }
+})
 
 
 
