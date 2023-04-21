@@ -145,6 +145,14 @@ app.get("/", async (req, res) => {
 })
 
 app.get("/registros", async (req, res) => {
+
+    const { authorization } = req.headers
+    const token = authorization?.replace("Bearer ", "")
+
+    if (!token) return res.status(401).send("Token Inexistente")
+    const sessao = await db.collection("sessions").findOne({ token })
+    if (!sessao) return res.status(401).send("Token inválido")
+
     try {
         const register = await db.collection("registros").find().toArray()
 
