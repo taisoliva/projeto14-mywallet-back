@@ -5,6 +5,7 @@ import dotenv from "dotenv"
 import joi from "joi"
 import bcrypt from "bcrypt"
 import { v4 as uuid } from "uuid"
+import dayjs from "dayjs"
 
 const app = express()
 const PORT = 5000
@@ -111,7 +112,7 @@ app.post("/nova-transacao/:tipo", async (req, res) => {
             return res.status(422).send(errors)
         }
 
-        await db.collection("registros").insertOne({ ...req.body, idUsuario: usuario._id, tipo: req.params.tipo })
+        await db.collection("registros").insertOne({ ...req.body, idUsuario: usuario._id, tipo: req.params.tipo, name:usuario.name, email:usuario.email, date: dayjs().format("DD/MM")})
     } catch (err) {
         res.status(500).send(err.message)
     }
@@ -122,8 +123,17 @@ app.post("/nova-transacao/:tipo", async (req, res) => {
 
 app.get("/cadastro", async (req, res) => {
 
+    const { authorization } = req.headers
+    const token = authorization?.replace("Bearer ", "")
+
+    if (!token) return res.status(401).send("Token Inexistente")
+    const sessao = await db.collection("sessions").findOne({ token })
+    if (!sessao) return res.status(401).send("Token inválido")
+
+    console.log(sessao)
+
     try {
-        const usuarios = await db.collection("users").find().toArray()
+        const usuarios = await db.collection("users").find({_id : sessao.idUsuario}).toArray()
 
         usuarios.forEach((user) => {
             delete user.password
@@ -152,19 +162,15 @@ app.get("/registros", async (req, res) => {
     if (!token) return res.status(401).send("Token Inexistente")
     const sessao = await db.collection("sessions").findOne({ token })
     if (!sessao) return res.status(401).send("Token inválido")
-
+   
     try {
-        const register = await db.collection("registros").find().toArray()
+        const register = await db.collection("registros").find({idUsuario : sessao.idUsuario}).toArray()
 
         res.send(register)
     } catch (err) {
         return res.status(500).send(err.message)
     }
 })
-
-
-
-
 
 
 app.listen(PORT, () => console.log(`Server Running in ${PORT}`))
