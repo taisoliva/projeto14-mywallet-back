@@ -8,7 +8,7 @@ import { v4 as uuid } from "uuid"
 import dayjs from "dayjs"
 
 const app = express()
-const PORT = 5000
+/* const PORT = 5000 */
 
 app.use(express.json())
 app.use(cors())
@@ -173,4 +173,5 @@ app.get("/registros", async (req, res) => {
 })
 
 
-app.listen(PORT, () => console.log(`Server Running in ${PORT}`))
+
+app.listen(process.env.PORT, () => console.log(`Server Running on port ${process.env.PORT}`))
