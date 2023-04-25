@@ -18,7 +18,7 @@ let db
 const mongoClient = new MongoClient(process.env.DATABASE_URL)
 mongoClient.connect()
     .then(() => {
-        db = mongoClient.db()
+        db = mongoClient.db("myWallet-Cluster")
     })
     .catch((err) => console.log(err.message))
 
@@ -175,3 +175,4 @@ app.get("/registros", async (req, res) => {
 
 
 app.listen(process.env.PORT, () => console.log(`Server Running on port ${process.env.PORT}`))
+/* app.listen(5000, () => console.log(`Server Running on port 5000`)) */
